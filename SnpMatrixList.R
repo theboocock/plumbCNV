@@ -1789,7 +1789,7 @@ aSnpMatrix.to.ChipInfo <- function(X,incorporate=FALSE,location=NULL) {
   ci <- as(snp.info,"ChipInfo")
   if(incorporate) {
     if(is.character(location)) {
-      if(get.ext(location)=="") & file.exists(location)) {
+      if(get.ext(location)=="" & file.exists(location)) {
         # assume a directory was passed, so need to add filename
         location <- cat.path(location,"aSnpMatChipInfo",suf=simple.date(),ext="RData")
       }
@@ -2236,8 +2236,8 @@ SnpMatrix.to.sml.by.chr <- function(X,snp.info=NULL,dir=NULL,build=NULL,genomeOr
     snp.info <- toGenomeOrder(snp.info)
     X <- X[,rownames(snp.info)]
   }
-  ch <- paste(chr2(snp.info))
-  chrz <- unique(paste(chr2(snp.info)))
+  ch <- paste(chrm(snp.info))
+  chrz <- unique(paste(chrm(snp.info)))
   n.chr <- length(chrz)
   sml <- vector("list",n.chr)
   if(!is.null(dir)) { if(file.exists(dir)) { disk <- TRUE } else { stop("dir '",dir,"'' did not exist") } } else { disk <- FALSE }
@@ -2312,6 +2312,28 @@ SnpMatrix.to.sml.by.chr <- function(X,snp.info=NULL,dir=NULL,build=NULL,genomeOr
 # legend("top",legend=paste(unique(anc)),col=get.distinct.cols(14)[as.numeric(unique(anc))],pch=19,ncol=4); dev.off()
 
 
+#' Select chromosome subset for aSnpMatrix
+#' 
+#' Returns the object filtered for specific chromosomes for a aSnpMatrix object
+#' @rdname chrSel-methods
+#' @exportMethod chrSel
+setMethod("chrSel", "aSnpMatrix", function(object,chr) {
+  si <- snp.info.from.annot(object)
+  subs <- rownames(humarray::chrSelect(si,chr))
+  return(object[,subs])
+})
+ 
+#' Select chromosome subset for aSnpMatrix
+#' 
+#' Returns the object filtered for specific chromosomes for a aXSnpMatrix object
+#' @rdname chrSel-methods
+#' @exportMethod chrSel
+setMethod("chrSel", "aXSnpMatrix", function(object,chr) {
+  si <- snp.info.from.annot(object)
+  subs <- rownames(humarray::chrSelect(si,chr))
+  return(object[,subs])
+})
+
 
 #' Linkage disequilibrium reduction of a SNP-set
 #' 
@@ -2331,12 +2353,15 @@ SnpMatrix.to.sml.by.chr <- function(X,snp.info=NULL,dir=NULL,build=NULL,genomeOr
 #' @export
 #' @examples
 #' # ownexample
-#' data(...)
-#' res <- ld.prune.chr(chrSel(...))
-#' small.dat <- ...[,res]
-#' LD <- ld(small.dat,stats="R.squared")
-#' prv(LD)
-#' summary(as.vector(LD))
+#' data(exSnpMat)
+#' res <- ld.prune.chr(exSnpMat)
+#' small.dat <- exSnpMat[,res].
+#' rest.dat <- exSnpMat[,-res]
+#' LD <- ld(small.dat,small.dat,stats="R.squared")
+#' print(LD)
+#' LD <- ld(rest.dat,small.dat,stats="R.squared")
+#' print(LD)
+#' apply(LD,1,max) # each SNP excluded has a correlation >.1 with one of the two kept
 ld.prune.chr <- function(X,stats="R.squared",thresh=.1) {
   if(estimate.memory(ncol(X)^2)>=1) { ld.prune.big(X,stats=stats,thresh=thresh) } 
   kk <- proc.time()[3]; mat <- ld(X,X,stats=stats[1]) ; jj <- proc.time()[3]; print(jj-kk)
@@ -2412,7 +2437,7 @@ split.pq <- function(aSnpMat,build=37,pqvec=FALSE,verbose=TRUE) {
   if(!is(si)[1]=="RangedData") { si <- as(si,"RangedData") }
   if(!is(si)[1]=="RangedData") { stop("couldn't extract snp.info from aSnpMat") }
   cent <- get.centromere.locs(build=build)
-  cnt.ch <- chr2(cent)
+  cnt.ch <- chrm(cent)
   chrz <- chrNames2(si)
   chrz2 <- gsub("chr","",paste(chrz),ignore.case = TRUE)
   arm <- rep("p",nrow(si))
@@ -2553,7 +2578,7 @@ annot.sep.support <- function(snpMat, snp.info, sample.info, snp.excl=NULL,
     df.info <- column.salvage(df.info,"snp.name",c("snp.name","snpid","snp.id","dbSNP","id","label","rs.id","rsid"),ignore.case=TRUE)
   })
   snp.rn <- rownames(snp.info)
-  snp.ch <- chr2(snp.info)
+  snp.ch <- chrm(snp.info)
   if("snp.name" %in% colnames(df.info)) { snp.nm <- df.info[,"snp.name"] } else { snp.nm <- snp.rn }
   if("cM" %in% colnames(df.info)) { snp.cm <- df.info[,"cM"] } else { snp.cm <- rep(NA,length(snp.rn)) }
   snp.ps <- start(snp.info)
@@ -3739,27 +3764,44 @@ read.pedData <- function(file,correct.codes=TRUE,silent=FALSE) {
 ## DATASETS ##
 ##############
 
-#' Autoimmune enriched regions as mapped on ImmunoChip
+#' Example aSnpMatrix (annotSnpStats) object
 #'
-#' Dataset. A consortium of 12 autoimmune diseases (Type 1 diabetes, Celiac
-#' disease, Multiple Sclerosis, Crohns Disease, Primary Billiary Cirrhosis, 
-#' Psoriasis, Rheumatoid Arthritis, Systemic Lupus Erytematosus, 
-#' Ulcerative Colitis, Ankylosing Spondylitis, Autoimmune Thyroid Disease,
-#' Juvenile Idiopathic Arthritis) created the ImmunoChip custom Illumina
-#' iSelect microarray in order to investigate known regions from GWAS
-#' associating with a p value < 5*10-8 with any of these diseases, using
-#' dense mapping of locii. This object specifies the boundaries of these
-#' regions, defined roughly as 0.1 centimorgan recombination distance either 
-#' side of the top marker in each. The data is in the original build 36
-#' coordinates as a GRanges object, but using functions in the humarray
-#' package can easily be converted to build 37, 38 or RangedData/data.frame.
-#' 
+#' Dataset. aSnpMatrix object are an extension of a SnpMatrix
+#' object from the package snpStats where the sample and SNP annotation
+#' is built-in and linked to the SnpMatrix object. Some operations are slower
+#' as a result, but this a very robust way of keeping the annotation linked
+#' to the data, and allows some powerful functions such as strand alignment
+#' to be done using the annotSnpStats package. This is an example object
+#' with 100 samples and 20 SNPs. A few samples and SNPs have low call rate,
+#' one snp is monomorphic, one has HWE deviation, a few samples have low
+#' heterozygosity. So there is good scope for testing functions in this
+#' package. 
 #' @name exAnnotSnp
 #' @docType data
 #' @format An object of class aSnpMatrix
 #' @keywords datasets
 #' @examples
+#' exAnnotSnp <- reader("~/github/plumbCNV/exAnnotSnp.rda")
 #' data(exAnnotSnp)
-#' prv(exAnnotSnp)
+#' show(exAnnotSnp)
+#' prv(exAnnotSnp@.Data)
+#' prv(exAnnotSnp@snps)
+#' prv(exAnnotSnp@samples)
+NULL # need some sort of code to trigger devtools:document to pick up a dataset
+
+
+#' Example SnpMatrix (snpStats) object
+#'
+#' Dataset. An example SnpMatrix object with
+#' some LD structure
+#' @name exAnnotSnp
+#' @docType data
+#' @format An object of class aSnpMatrix
+#' @keywords datasets
+#' @examples
+#' exAnnotSnp <- reader("~/github/plumbCNV/exSnpMat.rda")
+#' data(exSnpMat)
+#' show(exSnpMat)
+#' prv(exSnpMat)
 NULL # need some sort of code to trigger devtools:document to pick up a dataset
 
